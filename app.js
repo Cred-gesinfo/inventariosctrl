@@ -87,6 +87,7 @@ function applyPerms() {
   renderAll();
 }
 function showTab(t) {
+  scrollTo(0, 0);
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x.dataset.t === t));
   ["cat","mov","cam","usr"].forEach(id => $("#"+id).hidden = id !== t);
 }
@@ -133,12 +134,16 @@ function renderList() {
         <span class="stock ${(p.stock||0)<=0?"low":""}">Existencia: ${p.stock||0}</span>
         ${where ? `<span class="mute">${where}</span>` : ""}
         ${im.length > 1 ? `<div class="cnt">${im.slice(1,4).map(i => `<a href="${esc(i.url)}" target="_blank" rel="noopener"><img src="${esc(thumb(i.url,150))}" alt="" loading="lazy"></a>`).join("")}</div>` : ""}
-        ${edit ? `<div class="acts"><button class="sec" data-e="${p.id}">Editar</button><button class="del" data-d="${p.id}">Eliminar</button></div>` : ""}
+        ${(can("moves") || edit) ? `<div class="acts">${can("moves") ? `<button data-m="${p.id}">Mover</button>` : ""}${edit ? `<button class="sec" data-e="${p.id}">Editar</button><button class="del" data-d="${p.id}">Eliminar</button>` : ""}</div>` : ""}
       </div>
     </article>`; }).join("") : `<p class="mute">No hay productos.${can("catalog") ? " Agrega el primero con “Nuevo producto”." : ""}</p>`;
 }
 $("#q").oninput = renderList; $("#qc").onchange = renderList;
 $("#list").onclick = async e => {
+  if (e.target.dataset.m) {   // "Mover": abre Movimientos con el producto ya elegido
+    if (!can("moves")) return;
+    showTab("mov"); $("#mps").value = ""; renderSelect(); $("#mp").value = e.target.dataset.m; updInfo(); return;
+  }
   const id = e.target.dataset.e || e.target.dataset.d; if (!id || !can("catalog")) return;
   const p = products.find(x => x.id === id);
   if (e.target.dataset.e) return openForm(p);
@@ -201,16 +206,27 @@ $("#save").onclick = async () => {
 
 /* ---------- Movimientos ---------- */
 function renderSelect() {
-  const keep = ["#mp","#ml","#md"].map(s => $(s).value);
-  $("#mp").innerHTML = products.map(p => `<option value="${p.id}">${esc(p.partNumber)} · ${esc(p.description)}</option>`).join("");
+  const keep = ["#mp","#ml","#md"].map(s => $(s).value), f = $("#mps").value.trim().toLowerCase();
+  const list = products.filter(p => !f || `${p.partNumber} ${p.description} ${p.color || ""}`.toLowerCase().includes(f));
+  $("#mp").innerHTML = list.map(p => `<option value="${p.id}">${esc(p.partNumber)} · ${esc(p.description)}</option>`).join("") || `<option value="">Sin resultados</option>`;
   const lo = S.locations.map(l => `<option value="${l.key}">${esc(l.label)}</option>`).join("");
   $("#ml").innerHTML = lo; $("#md").innerHTML = lo;
   ["#mp","#ml","#md"].forEach((s, i) => { if (keep[i]) $(s).value = keep[i]; });
+  updInfo();
 }
-$("#mt").onchange = () => {
-  const t = $("#mt").value; $("#mdw").hidden = t !== "transfer";
-  $("#mll").textContent = t === "transfer" ? "Origen" : "Ubicación";
-};
+function updInfo() {
+  const p = products.find(x => x.id === $("#mp").value), l = $("#ml").value;
+  $("#minfo").textContent = p ? `Existencia total: ${p.stock || 0}${l ? ` · en ${label("locations", l)}: ${p.stockByLoc?.[l] || 0}` : ""}` : "";
+}
+$("#mps").oninput = renderSelect; $("#mp").onchange = $("#ml").onchange = updInfo;
+function setType(t) {
+  $("#mt").value = t; document.querySelectorAll("#mtseg button").forEach(b => b.classList.toggle("on", b.dataset.v === t));
+  $("#mdw").hidden = t !== "transfer"; $("#mll").textContent = t === "transfer" ? "Origen" : "Ubicación";
+}
+$("#mtseg").onclick = e => { if (e.target.dataset.v) setType(e.target.dataset.v); };
+$("#qm").onclick = () => { $("#mq").value = Math.max(1, (parseInt($("#mq").value, 10) || 1) - 1); };
+$("#qp").onclick = () => { $("#mq").value = (parseInt($("#mq").value, 10) || 0) + 1; };
+function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2500); }
 $("#mgo").onclick = async () => {
   if (!can("moves")) return;
   const id = $("#mp").value, type = $("#mt").value, qty = parseInt($("#mq").value, 10), note = $("#mn").value.trim();
@@ -233,14 +249,17 @@ $("#mgo").onclick = async () => {
       tx.update(pref, {stock: total, stockByLoc: sbl});
       tx.set(doc(collection(db,"movements")), {productId:id, partNumber:p.partNumber, description:p.description, type, qty, loc:from, toLoc:type==="transfer"?to:null, stockAfter:total, note, date:serverTimestamp(), by:auth.currentUser.email});
     });
-    $("#mq").value = 1; $("#mn").value = "";
+    $("#mq").value = 1; $("#mn").value = ""; $("#mps").value = ""; renderSelect();
+    toast({in:"Entrada registrada", out:"Salida registrada", transfer:"Traslado registrado"}[type]); navigator.vibrate?.(40);
   } catch (e) { err(e.message); }
 };
 const TIPO = {in:"Entrada", out:"Salida", transfer:"Traslado"};
 function renderMovs() {
-  $("#mlist").innerHTML = movs.map(m => `<tr><td>${m.date ? m.date.toDate().toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"}) : "…"}</td>
-    <td>${esc(m.partNumber)}</td><td class="${m.type==="transfer"?"":m.type}">${TIPO[m.type]}</td><td>${m.qty}</td>
-    <td>${esc(label("locations", m.loc))}${m.toLoc ? " → " + esc(label("locations", m.toLoc)) : ""}</td><td>${esc(m.note)}</td></tr>`).join("");
+  $("#mlist").innerHTML = movs.map(m => `<div class="mv">
+    <div class="mvh"><span class="tag ${m.type}">${TIPO[m.type]}</span><b>${m.qty}</b><span>${esc(m.partNumber)}</span></div>
+    <div class="mute">${esc(m.description)}</div>
+    <div class="mute">${esc(label("locations", m.loc))}${m.toLoc ? " → " + esc(label("locations", m.toLoc)) : ""} · ${m.date ? m.date.toDate().toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"}) : "…"} · ${esc((m.by || "").split("@")[0])}${m.note ? " · " + esc(m.note) : ""}</div>
+  </div>`).join("") || `<p class="mute">Aún no hay movimientos.</p>`;
 }
 
 /* ---------- Ajustes: propiedades, categorías y ubicaciones ---------- */
@@ -276,11 +295,15 @@ $("#ur").innerHTML = roleOpts("consulta");
 $("#rolehelp").innerHTML = Object.values(ROLES).map(r => `<b>${r.label}:</b> ${r.info}.`).join(" ");
 function renderUsers() {
   if (!can("users") || !auth.currentUser) { $("#ulist").innerHTML = ""; return; }
-  $("#ulist").innerHTML = users.map(u => { const self = u.id === auth.currentUser.uid; return `<tr>
-    <td>${esc(u.name)}</td><td>${esc(u.email)}</td>
-    <td><select data-ur="${u.id}" ${self?"disabled":""} aria-label="Rol de ${esc(u.email)}">${roleOpts(u.role)}</select></td>
-    <td><input type="checkbox" style="width:auto" data-ua="${u.id}" ${u.active?"checked":""} ${self?"disabled":""} aria-label="Activo: ${esc(u.email)}"></td>
-    <td><button class="sec" data-up="${esc(u.email)}">Restablecer contraseña</button></td></tr>`; }).join("");
+  $("#ulist").innerHTML = users.map(u => { const self = u.id === auth.currentUser.uid; return `<div class="mv">
+    <div class="mvh"><b>${esc(u.name)}</b>${self ? `<span class="tag">Tú</span>` : ""}</div>
+    <div class="mute">${esc(u.email)}</div>
+    <div class="row" style="margin-top:.5rem;align-items:center">
+      <select style="flex:1 1 150px" data-ur="${u.id}" ${self?"disabled":""} aria-label="Rol de ${esc(u.email)}">${roleOpts(u.role)}</select>
+      <label style="margin:0;display:flex;gap:.5rem;align-items:center;flex:0 0 auto"><input type="checkbox" data-ua="${u.id}" ${u.active?"checked":""} ${self?"disabled":""}> Activo</label>
+    </div>
+    <div class="acts"><button class="sec" data-up="${esc(u.email)}">Restablecer contraseña</button></div>
+  </div>`; }).join("");
 }
 $("#ulist").onchange = async e => {
   if (!can("users")) return;
