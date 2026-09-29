@@ -59,6 +59,17 @@ dialog::backdrop{background:#0008}
 </head>
 <body>
 
+<p id="boot" style="max-width:420px;margin:18vh auto;padding:0 1rem;text-align:center;color:#5E6B67">Cargando…</p>
+<script>
+// Si algo impide que la app arranque, lo muestra en pantalla en lugar de dejarla en blanco
+(function(){
+  var b=function(m){var e=document.getElementById("boot");if(e){e.style.color="#B3402A";e.textContent=m;}};
+  addEventListener("error",function(ev){var t=ev.target&&(ev.target.src||ev.target.href);b(t?"No se pudo cargar: "+t.split("/").pop()+". Revisa que el archivo esté publicado.":"Error: "+ev.message);},true);
+  addEventListener("unhandledrejection",function(ev){b("Error: "+(ev.reason&&ev.reason.message||ev.reason));});
+  setTimeout(function(){var e=document.getElementById("boot");if(e&&e.textContent==="Cargando…")e.textContent="Sigue cargando… si no cambia, revisa tu conexión y que app.js esté publicado.";},8000);
+})();
+</script>
+
 <section id="login" class="box" hidden>
   <h1 style="margin-top:0">Inventario</h1>
   <label for="em">Correo</label><input id="em" type="email" autocomplete="username">
