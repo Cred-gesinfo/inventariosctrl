@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventario · Mi Pueblito</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EDF0EE;--card:#fff;--ink:#17211F;--mute:#5E6B67;--line:#CBD3D0;--pine:#1F4D45;--red:#B3402A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Bricolage Grotesque",system-ui,sans-serif}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--pine);background:var(--pine);color:#fff;padding:.5rem .9rem;border-radius:6px}
+button.sec{background:transparent;color:var(--pine)}
+button.del{border-color:var(--red);background:transparent;color:var(--red)}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #7FB5A9;outline-offset:1px}
+input,select,textarea{width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:6px;background:#fff}
+label{display:block;font-weight:600;font-size:.9rem;margin:.7rem 0 .2rem}
+header{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;background:var(--pine);color:#fff}
+header h1{margin:0;font-size:1.25rem}
+nav{display:flex;gap:.3rem;flex-wrap:wrap}
+nav button{background:transparent;border-color:transparent;color:#cfe3de}
+nav button.on{background:#fff;color:var(--pine)}
+header .r{display:flex;gap:.6rem;align-items:center;font-size:.9rem}
+header .r button{background:transparent;border-color:#8fb5ac}
+main{max-width:1100px;margin:0 auto;padding:1.2rem}
+.bar{display:flex;gap:.6rem;margin-bottom:1rem}
+.bar input{flex:1}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1rem}
+.p{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.p>a{display:block}
+.p>a img{width:100%;aspect-ratio:4/3;object-fit:cover;background:#dfe5e2;display:block}
+.p>div{padding:.8rem;display:flex;flex-direction:column;gap:.15rem;flex:1}
+.p b{font-size:1.05rem}.mute{color:var(--mute);font-size:.9rem}
+.stock{font-weight:700}.stock.low{color:var(--red)}
+.acts{display:flex;gap:.4rem;margin-top:.6rem}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem;margin-bottom:1rem}
+table{width:100%;border-collapse:collapse}
+td,th{padding:.45rem .5rem;border-bottom:1px solid var(--line);text-align:left}
+.in{color:var(--pine);font-weight:700}.out{color:var(--red);font-weight:700}
+dialog{border:1px solid var(--line);border-radius:12px;padding:1.2rem;width:min(520px,94vw)}
+dialog::backdrop{background:#0008}
+.box{max-width:360px;margin:12vh auto;background:var(--card);padding:1.4rem;border-radius:10px;border:1px solid var(--line)}
+.err{color:var(--red);font-size:.9rem;min-height:1.3rem}
+.row{display:flex;gap:.5rem;align-items:end}.row>*{flex:1}
+.th{position:relative;flex:0 0 74px!important}.th img{width:74px;height:74px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.th button{position:absolute;top:2px;right:2px;padding:0 .35rem;background:var(--red);border-color:var(--red)}
+.cnt{display:flex;gap:.3rem;margin-top:.3rem}.cnt img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px}
+</style>
+</head>
+<body>
+
+<section id="login" class="box" hidden>
+  <h1 style="margin-top:0">Inventario</h1>
+  <label for="em">Correo</label><input id="em" type="email" autocomplete="username">
+  <label for="pw">Contraseña</label><input id="pw" type="password" autocomplete="current-password">
+  <p class="err" id="lerr"></p>
+  <button id="go" style="width:100%">Entrar</button>
+</section>
+
+<section id="noacc" class="box" hidden>
+  <h1 style="margin-top:0">Sin acceso</h1>
+  <p>Tu cuenta existe, pero no está dada de alta o está desactivada. Pide a un administrador que la active.</p>
+  <button class="sec" id="out2">Salir</button>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <h1>Inventario · Mi Pueblito</h1>
+    <nav>
+      <button data-t="cat" class="on">Catálogo</button>
+      <button data-t="mov">Movimientos</button>
+      <button data-t="cam">Ajustes</button>
+      <button data-t="usr">Usuarios</button>
+    </nav>
+    <div class="r"><span id="who"></span><button id="out">Salir</button></div>
+  </header>
+  <main>
+    <section id="cat">
+      <div class="bar"><input id="q" placeholder="Buscar por número de parte, descripción, color…" aria-label="Buscar"><select id="qc" aria-label="Categoría" style="max-width:200px"></select><button id="new">Nuevo producto</button></div>
+      <div class="grid" id="list"></div>
+    </section>
+
+    <section id="mov" hidden>
+      <div class="panel" id="mform">
+        <div class="row">
+          <div><label for="mp">Producto</label><select id="mp"></select></div>
+          <div><label for="mt">Tipo</label><select id="mt"><option value="in">Entrada</option><option value="out">Salida</option><option value="transfer">Traslado</option></select></div>
+          <div><label for="mq">Cantidad</label><input id="mq" type="number" min="1" value="1"></div>
+        </div>
+        <div class="row">
+          <div><label for="ml" id="mll">Ubicación</label><select id="ml"></select></div>
+          <div id="mdw" hidden><label for="md">Destino</label><select id="md"></select></div>
+        </div>
+        <label for="mn">Nota (proveedor, cliente, folio…)</label><input id="mn">
+        <p class="err" id="merr"></p>
+        <button id="mgo">Registrar movimiento</button>
+      </div>
+      <div class="panel" style="overflow:auto"><table><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cant.</th><th>Ubicación</th><th>Nota</th></tr></thead><tbody id="mlist"></tbody></table></div>
+    </section>
+
+    <section id="cam" hidden></section>
+
+    <section id="usr" hidden>
+      <div class="panel">
+        <h2 style="margin-top:0;font-size:1.1rem">Nuevo usuario</h2>
+        <div class="row">
+          <div><label for="un">Nombre</label><input id="un"></div>
+          <div><label for="ue">Correo</label><input id="ue" type="email"></div>
+        </div>
+        <div class="row">
+          <div><label for="up">Contraseña temporal (mínimo 6 caracteres)</label><input id="up" autocomplete="off"></div>
+          <div><label for="ur">Rol</label><select id="ur"></select></div>
+        </div>
+        <p class="err" id="uerr"></p>
+        <button id="ugo">Crear usuario</button>
+        <p class="mute" id="rolehelp"></p>
+      </div>
+      <div class="panel" style="overflow:auto"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Activo</th><th></th></tr></thead><tbody id="ulist"></tbody></table></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog" id="pf" style="margin:0">
+    <h2 id="dt" style="margin-top:0"></h2>
+    <div id="fields"></div>
+    <label for="img">Imágenes del producto (la primera es la portada)</label>
+    <div id="thumbs" class="row" style="flex-wrap:wrap;justify-content:flex-start"></div>
+    <input id="img" type="file" accept="image/*" multiple>
+    <p class="err" id="perr"></p>
+    <div class="acts"><button type="button" id="save">Guardar producto</button><button type="button" class="sec" id="cancel">Cancelar</button></div>
+  </form>
+</dialog>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,runTransaction,serverTimestamp,query,orderBy,limit} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// Configuración del proyecto invcontrol-62d5b
+const firebaseConfig = {
+  apiKey: "AIzaSyByUXNZFFOOY5kf3ajqXyMJmowa505RL3c",
+  authDomain: "invcontrol-62d5b.firebaseapp.com",
+  projectId: "invcontrol-62d5b",
+  storageBucket: "invcontrol-62d5b.firebasestorage.app",
+  messagingSenderId: "423401865811",
+  appId: "1:423401865811:web:779a3e15ccd2aaf51cfca6"
+};
+// Cloudinary (plan gratuito): pega tu "Cloud name" y el nombre de tu upload preset sin firma
+const CLOUD_NAME = "TU_CLOUD_NAME";
+const UPLOAD_PRESET = "TU_UPLOAD_PRESET";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app), db = getFirestore(app);
+// Segunda instancia solo para crear cuentas sin cerrar la sesión del administrador
+const authAlt = getAuth(initializeApp(firebaseConfig, "alt"));
+
+/* ---------- Roles y permisos (las reglas de Firestore aplican los mismos) ---------- */
+const ROLES = {
+  admin:   {label:"Administrador", p:["users","settings","catalog","moves"], info:"todo, incluida la administración de usuarios"},
+  editor:  {label:"Editor",        p:["settings","catalog","moves"],         info:"catálogo, ajustes y movimientos"},
+  almacen: {label:"Almacén",       p:["moves"],                               info:"solo registra entradas, salidas y traslados"},
+  consulta:{label:"Solo consulta", p:[],                                      info:"solo ve el catálogo y los movimientos"}
+};
+let me = null;
+const can = p => !!me && me.active === true && (ROLES[me.role]?.p || []).includes(p);
+
+const BASE = [
+  {key:"partNumber", label:"Número de parte"},
+  {key:"description", label:"Descripción"},
+  {key:"color", label:"Color"},
+  {key:"features", label:"Características", area:true}
+];
+const K = {
+  fields:     {doc:"schema",    prop:"fields", title:"Propiedades extra", hint:"Ej. Material, Medidas, Proveedor"},
+  categories: {doc:"categories",prop:"items",  title:"Categorías",        hint:"Ej. Salas, Recámaras, Comedores"},
+  locations:  {doc:"locations", prop:"items",  title:"Ubicaciones",       hint:"Ej. Bodega, Showroom, Sucursal 2"}
+};
+const S = {fields:[], categories:[], locations:[]};
+let products = [], movs = [], users = [], editing = null, imgs = [];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+const label = (k, key) => S[k].find(x => x.key === key)?.label || key || "";
+const thumb = (u, w = 400) => u.replace("/upload/", `/upload/c_fill,w_${w},h_${Math.round(w*.75)},q_auto,f_auto/`);
+
+/* ---------- Sesión ---------- */
+let sessionSubs = [], dataSubs = [];
+const stopData = () => { dataSubs.forEach(f => f()); dataSubs = []; };
+onAuthStateChanged(auth, u => {
+  sessionSubs.forEach(f => f()); sessionSubs = []; stopData(); me = null;
+  $("#login").hidden = !!u; $("#app").hidden = true; $("#noacc").hidden = true;
+  if (!u) return;
+  sessionSubs.push(onSnapshot(doc(db,"users",u.uid), d => {
+    me = d.exists() ? d.data() : null;
+    const ok = !!me && me.active === true && !!ROLES[me.role];
+    $("#noacc").hidden = ok; $("#app").hidden = !ok;
+    stopData();
+    if (ok) { startData(); applyPerms(); }
+  }, () => { $("#noacc").hidden = false; }));
+});
+function startData() {
+  Object.entries(K).forEach(([k, c]) => dataSubs.push(onSnapshot(doc(db,"config",c.doc), d => {
+    S[k] = d.exists() ? d.data()[c.prop] || [] : []; renderAll();
+  })));
+  dataSubs.push(
+    onSnapshot(collection(db,"products"), s => { products = s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=>(a.partNumber||"").localeCompare(b.partNumber||"")); renderAll(); }),
+    onSnapshot(query(collection(db,"movements"), orderBy("date","desc"), limit(100)), s => { movs = s.docs.map(d => d.data()); renderMovs(); })
+  );
+  if (can("users")) dataSubs.push(onSnapshot(collection(db,"users"), s => {
+    users = s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=>(a.name||a.email||"").localeCompare(b.name||b.email||"")); renderUsers();
+  }));
+}
+function applyPerms() {
+  $("#who").textContent = `${me.name || me.email} · ${ROLES[me.role].label}`;
+  const vis = {cat:true, mov:true, cam:can("settings"), usr:can("users")};
+  document.querySelectorAll("nav button").forEach(b => b.hidden = !vis[b.dataset.t]);
+  $("#new").hidden = !can("catalog"); $("#mform").hidden = !can("moves");
+  const on = document.querySelector("nav button.on");
+  if (!on || on.hidden) showTab("cat");
+  renderAll();
+}
+function showTab(t) {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x.dataset.t === t));
+  ["cat","mov","cam","usr"].forEach(id => $("#"+id).hidden = id !== t);
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => showTab(b.dataset.t));
+$("#go").onclick = async () => {
+  try { await signInWithEmailAndPassword(auth, $("#em").value, $("#pw").value); $("#lerr").textContent = ""; }
+  catch { $("#lerr").textContent = "Correo o contraseña incorrectos."; }
+};
+$("#out").onclick = $("#out2").onclick = () => signOut(auth);
+function renderAll() { renderCfg(); renderFields(); renderFilter(); renderList(); renderSelect(); renderMovs(); renderUsers(); }
+
+/* ---------- Imágenes (Cloudinary) ---------- */
+async function shrink(file, max = 1600) {
+  try {
+    const bm = await createImageBitmap(file), k = Math.min(1, max / Math.max(bm.width, bm.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k);
+    c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(r, "image/jpeg", .85));
+  } catch { return file; }
+}
+async function upload(file) {
+  const fd = new FormData(); fd.append("file", await shrink(file)); fd.append("upload_preset", UPLOAD_PRESET);
+  const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}), j = await r.json();
+  if (!r.ok) throw new Error(j.error?.message || "No se pudo subir la imagen.");
+  return {url:j.secure_url, id:j.public_id};
+}
+
+/* ---------- Catálogo ---------- */
+function renderFilter() {
+  const cur = $("#qc").value;
+  $("#qc").innerHTML = `<option value="">Todas las categorías</option>` + S.categories.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join("");
+  $("#qc").value = cur;
+}
+function renderList() {
+  const q = $("#q").value.toLowerCase(), c = $("#qc").value, edit = can("catalog");
+  const rows = products.filter(p => (!c || p.category === c) && (!q || JSON.stringify([p.partNumber,p.description,p.color,p.features,p.extra]).toLowerCase().includes(q)));
+  $("#list").innerHTML = rows.length ? rows.map(p => {
+    const im = p.images || [], where = S.locations.filter(l => (p.stockByLoc?.[l.key]||0) > 0).map(l => `${esc(l.label)}: ${p.stockByLoc[l.key]}`).join(" · ");
+    return `<article class="p">
+      ${im[0] ? `<a href="${esc(im[0].url)}" target="_blank" rel="noopener"><img src="${esc(thumb(im[0].url,500))}" alt="${esc(p.description)}" loading="lazy"></a>` : ""}
+      <div>
+        <b>${esc(p.partNumber)}</b><span>${esc(p.description)}</span>
+        <span class="mute">${esc([label("categories", p.category), p.color].filter(Boolean).join(" · "))}</span>
+        <span class="stock ${(p.stock||0)<=0?"low":""}">Existencia: ${p.stock||0}</span>
+        ${where ? `<span class="mute">${where}</span>` : ""}
+        ${im.length > 1 ? `<div class="cnt">${im.slice(1,4).map(i => `<a href="${esc(i.url)}" target="_blank" rel="noopener"><img src="${esc(thumb(i.url,150))}" alt="" loading="lazy"></a>`).join("")}</div>` : ""}
+        ${edit ? `<div class="acts"><button class="sec" data-e="${p.id}">Editar</button><button class="del" data-d="${p.id}">Eliminar</button></div>` : ""}
+      </div>
+    </article>`; }).join("") : `<p class="mute">No hay productos.${can("catalog") ? " Agrega el primero con “Nuevo producto”." : ""}</p>`;
+}
+$("#q").oninput = renderList; $("#qc").onchange = renderList;
+$("#list").onclick = async e => {
+  const id = e.target.dataset.e || e.target.dataset.d; if (!id || !can("catalog")) return;
+  const p = products.find(x => x.id === id);
+  if (e.target.dataset.e) return openForm(p);
+  if (confirm(`¿Eliminar ${p.partNumber}? No se puede deshacer. Sus fotos dejan de mostrarse en la app, pero siguen en tu cuenta de Cloudinary.`)) await deleteDoc(doc(db,"products",id));
+};
+
+function renderFields() {
+  const keep = {}; document.querySelectorAll("#fields [id^=f_]").forEach(el => keep[el.id] = el.value);
+  $("#fields").innerHTML =
+    BASE.map(f => `<label for="f_${f.key}">${f.label}</label>` + (f.area ? `<textarea id="f_${f.key}" rows="3"></textarea>` : `<input id="f_${f.key}">`)).join("") +
+    `<label for="f_category">Categoría</label><select id="f_category"><option value="">Sin categoría</option>${S.categories.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join("")}</select>` +
+    S.fields.map(f => `<label for="f_${f.key}">${esc(f.label)}</label><input id="f_${f.key}">`).join("");
+  Object.entries(keep).forEach(([id, v]) => { const el = $("#"+id); if (el) el.value = v; });
+}
+function renderThumbs() {
+  $("#thumbs").innerHTML = imgs.map((i, n) => `<div class="th"><img src="${esc(thumb(i.url,150))}" alt="Imagen ${n+1}"><button type="button" data-x="${n}" aria-label="Quitar imagen ${n+1}">×</button></div>`).join("");
+}
+$("#thumbs").onclick = e => { const n = e.target.dataset.x; if (n !== undefined) { imgs.splice(+n, 1); renderThumbs(); } };
+function openForm(p) {
+  editing = p || {}; $("#dt").textContent = p ? "Editar producto" : "Nuevo producto";
+  renderFields();
+  BASE.forEach(f => $("#f_"+f.key).value = p?.[f.key] ?? "");
+  $("#f_category").value = p?.category ?? "";
+  S.fields.forEach(f => $("#f_"+f.key).value = p?.extra?.[f.key] ?? "");
+  imgs = p ? [...(p.images || [])] : []; renderThumbs();
+  $("#img").value = ""; $("#perr").textContent = ""; $("#dlg").showModal();
+}
+$("#new").onclick = () => openForm(null);
+$("#cancel").onclick = () => { editing = null; $("#dlg").close(); };
+$("#save").onclick = async () => {
+  const err = m => $("#perr").textContent = m;
+  const data = {}; BASE.forEach(f => data[f.key] = $("#f_"+f.key).value.trim());
+  if (!data.partNumber || !data.description) return err("Número de parte y descripción son obligatorios.");
+  const files = [...$("#img").files];
+  if (!imgs.length && !files.length) return err("Cada producto necesita al menos una imagen.");
+  if (files.length && (CLOUD_NAME.startsWith("TU_") || UPLOAD_PRESET.startsWith("TU_"))) return err("Falta configurar Cloudinary en el archivo (CLOUD_NAME y UPLOAD_PRESET).");
+  if (products.some(p => p.partNumber === data.partNumber && p.id !== editing.id)) return err("Ya existe un producto con ese número de parte.");
+  $("#save").disabled = true; err("Guardando…");
+  try {
+    const id = editing.id || doc(collection(db,"products")).id;
+    data.category = $("#f_category").value;
+    data.extra = {}; S.fields.forEach(f => data.extra[f.key] = $("#f_"+f.key).value.trim());
+    const all = [...imgs];
+    for (const f of files) all.push(await upload(f));
+    data.images = all; data.imageUrl = all[0].url;
+    if (!editing.id) { data.stock = 0; data.stockByLoc = {}; }   // la existencia solo cambia con movimientos
+    await setDoc(doc(db,"products",id), {...data, updatedAt: serverTimestamp()}, {merge:true});
+    editing = null; err(""); $("#dlg").close();
+  } catch (e) { err("No se pudo guardar: " + e.message); }
+  $("#save").disabled = false;
+};
+
+/* ---------- Movimientos ---------- */
+function renderSelect() {
+  const keep = ["#mp","#ml","#md"].map(s => $(s).value);
+  $("#mp").innerHTML = products.map(p => `<option value="${p.id}">${esc(p.partNumber)} · ${esc(p.description)}</option>`).join("");
+  const lo = S.locations.map(l => `<option value="${l.key}">${esc(l.label)}</option>`).join("");
+  $("#ml").innerHTML = lo; $("#md").innerHTML = lo;
+  ["#mp","#ml","#md"].forEach((s, i) => { if (keep[i]) $(s).value = keep[i]; });
+}
+$("#mt").onchange = () => {
+  const t = $("#mt").value; $("#mdw").hidden = t !== "transfer";
+  $("#mll").textContent = t === "transfer" ? "Origen" : "Ubicación";
+};
+$("#mgo").onclick = async () => {
+  if (!can("moves")) return;
+  const id = $("#mp").value, type = $("#mt").value, qty = parseInt($("#mq").value, 10), note = $("#mn").value.trim();
+  const from = $("#ml").value, to = $("#md").value;
+  const err = m => $("#merr").textContent = m; err("");
+  if (!id) return err("Primero agrega un producto al catálogo.");
+  if (!from) return err("Primero agrega una ubicación en Ajustes.");
+  if (!(qty > 0)) return err("La cantidad debe ser mayor a cero.");
+  if (type === "transfer" && from === to) return err("El origen y el destino deben ser distintos.");
+  try {
+    await runTransaction(db, async tx => {
+      const pref = doc(db,"products",id), p = (await tx.get(pref)).data(), sbl = {...(p.stockByLoc || {})};
+      const has = sbl[from] || 0; let total = p.stock || 0;
+      if (type === "in") { sbl[from] = has + qty; total += qty; }
+      else {
+        if (has < qty) throw new Error(`En esa ubicación solo hay ${has}.`);
+        sbl[from] = has - qty;
+        if (type === "out") total -= qty; else sbl[to] = (sbl[to] || 0) + qty;
+      }
+      tx.update(pref, {stock: total, stockByLoc: sbl});
+      tx.set(doc(collection(db,"movements")), {productId:id, partNumber:p.partNumber, description:p.description, type, qty, loc:from, toLoc:type==="transfer"?to:null, stockAfter:total, note, date:serverTimestamp(), by:auth.currentUser.email});
+    });
+    $("#mq").value = 1; $("#mn").value = "";
+  } catch (e) { err(e.message); }
+};
+const TIPO = {in:"Entrada", out:"Salida", transfer:"Traslado"};
+function renderMovs() {
+  $("#mlist").innerHTML = movs.map(m => `<tr><td>${m.date ? m.date.toDate().toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"}) : "…"}</td>
+    <td>${esc(m.partNumber)}</td><td class="${m.type==="transfer"?"":m.type}">${TIPO[m.type]}</td><td>${m.qty}</td>
+    <td>${esc(label("locations", m.loc))}${m.toLoc ? " → " + esc(label("locations", m.toLoc)) : ""}</td><td>${esc(m.note)}</td></tr>`).join("");
+}
+
+/* ---------- Ajustes: propiedades, categorías y ubicaciones ---------- */
+function renderCfg() {
+  if (!can("settings")) { $("#cam").innerHTML = ""; return; }
+  const focus = document.activeElement?.id, vals = {}; Object.keys(K).forEach(k => vals[k] = $("#n_"+k)?.value || "");
+  $("#cam").innerHTML = Object.entries(K).map(([k, c]) => `
+    <div class="panel"><h2 style="margin-top:0;font-size:1.1rem">${c.title}</h2>
+      ${k === "fields" ? `<p class="mute">Número de parte, descripción, color y características siempre existen. Aquí agregas las demás.</p>` : ""}
+      <div class="row"><div><label for="n_${k}">Nuevo nombre</label><input id="n_${k}" placeholder="${c.hint}"></div><button data-a="${k}" style="flex:0 0 auto">Agregar</button></div>
+      <table style="margin-top:.8rem"><tbody>${S[k].map(f => `<tr><td>${esc(f.label)}</td><td style="text-align:right"><button class="del" data-k="${k}" data-r="${f.key}">Quitar</button></td></tr>`).join("") || `<tr><td class="mute">Aún no hay elementos.</td></tr>`}</tbody></table>
+    </div>`).join("");
+  Object.keys(K).forEach(k => $("#n_"+k).value = vals[k]);
+  if (focus && $("#"+focus)) $("#"+focus).focus();
+}
+$("#cam").onclick = async e => {
+  if (!can("settings")) return;
+  const a = e.target.dataset.a, r = e.target.dataset.r, k = e.target.dataset.k;
+  if (a) {
+    const input = $("#n_"+a), name = input.value.trim(), key = slug(name);
+    const used = [...S[a], ...(a === "fields" ? BASE : [])].some(f => f.key === key);
+    if (!key || used) return alert("Escribe un nombre que no exista todavía.");
+    await setDoc(doc(db,"config",K[a].doc), {[K[a].prop]: [...S[a], {key, label:name}]});
+  } else if (r) {
+    if (k === "locations" && products.some(p => (p.stockByLoc?.[r] || 0) > 0)) return alert("Aún hay existencia en esa ubicación. Traslada o da salida al producto primero.");
+    if (confirm("Se quita de las listas. Los datos ya guardados en productos y movimientos se conservan.")) await setDoc(doc(db,"config",K[k].doc), {[K[k].prop]: S[k].filter(f => f.key !== r)});
+  }
+};
+
+/* ---------- Usuarios (solo administradores) ---------- */
+const roleOpts = sel => Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${k===sel?"selected":""}>${r.label}</option>`).join("");
+$("#ur").innerHTML = roleOpts("consulta");
+$("#rolehelp").innerHTML = Object.values(ROLES).map(r => `<b>${r.label}:</b> ${r.info}.`).join(" ");
+function renderUsers() {
+  if (!can("users") || !auth.currentUser) { $("#ulist").innerHTML = ""; return; }
+  $("#ulist").innerHTML = users.map(u => { const self = u.id === auth.currentUser.uid; return `<tr>
+    <td>${esc(u.name)}</td><td>${esc(u.email)}</td>
+    <td><select data-ur="${u.id}" ${self?"disabled":""} aria-label="Rol de ${esc(u.email)}">${roleOpts(u.role)}</select></td>
+    <td><input type="checkbox" style="width:auto" data-ua="${u.id}" ${u.active?"checked":""} ${self?"disabled":""} aria-label="Activo: ${esc(u.email)}"></td>
+    <td><button class="sec" data-up="${esc(u.email)}">Restablecer contraseña</button></td></tr>`; }).join("");
+}
+$("#ulist").onchange = async e => {
+  if (!can("users")) return;
+  if (e.target.dataset.ur) await updateDoc(doc(db,"users",e.target.dataset.ur), {role:e.target.value});
+  if (e.target.dataset.ua) await updateDoc(doc(db,"users",e.target.dataset.ua), {active:e.target.checked});
+};
+$("#ulist").onclick = async e => {
+  const mail = e.target.dataset.up; if (!mail || !can("users")) return;
+  try { await sendPasswordResetEmail(auth, mail); alert("Se envió un correo para restablecer la contraseña a " + mail); }
+  catch { alert("No se pudo enviar el correo."); }
+};
+$("#ugo").onclick = async () => {
+  if (!can("users")) return;
+  const name = $("#un").value.trim(), email = $("#ue").value.trim(), pw = $("#up").value, role = $("#ur").value;
+  const err = m => $("#uerr").textContent = m; err("");
+  if (!name || !email) return err("Escribe el nombre y el correo.");
+  if (pw.length < 6) return err("La contraseña temporal necesita al menos 6 caracteres.");
+  $("#ugo").disabled = true;
+  try {
+    const cred = await createUserWithEmailAndPassword(authAlt, email, pw);
+    await setDoc(doc(db,"users",cred.user.uid), {name, email, role, active:true, createdAt:serverTimestamp()});
+    await signOut(authAlt);
+    $("#un").value = $("#ue").value = $("#up").value = "";
+  } catch (e) {
+    err(e.code === "auth/email-already-in-use" ? "Ese correo ya tiene cuenta. Si ya lo diste de alta, búscalo en la lista." :
+        e.code === "auth/invalid-email" ? "El correo no es válido." :
+        e.code === "auth/operation-not-allowed" ? "En Authentication debe estar permitido crear cuentas (User actions)." : "No se pudo crear: " + e.message);
+  }
+  $("#ugo").disabled = false;
+};
+</script>
+</body>
+</html>
