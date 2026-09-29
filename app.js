@@ -42,7 +42,7 @@ const K = {
   locations:  {doc:"locations", prop:"items",  title:"Ubicaciones",       hint:"Ej. Bodega, Showroom, Sucursal 2"}
 };
 const S = {fields:[], categories:[], locations:[]};
-let products = [], movs = [], users = [], editing = null, imgs = [];
+let products = [], movs = [], users = [], editing = null, imgs = [], pending = [], stream = null;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
@@ -154,25 +154,33 @@ function renderFields() {
   Object.entries(keep).forEach(([id, v]) => { const el = $("#"+id); if (el) el.value = v; });
 }
 function renderThumbs() {
-  $("#thumbs").innerHTML = imgs.map((i, n) => `<div class="th"><img src="${esc(thumb(i.url,150))}" alt="Imagen ${n+1}"><button type="button" data-x="${n}" aria-label="Quitar imagen ${n+1}">×</button></div>`).join("");
+  const all = [...imgs.map(i => thumb(i.url,150)), ...pending.map(p => p.url)];
+  $("#thumbs").innerHTML = all.map((src, n) => `<div class="th"><img src="${esc(src)}" alt="Imagen ${n+1}"><button type="button" data-x="${n}" aria-label="Quitar imagen ${n+1}">×</button></div>`).join("");
 }
-$("#thumbs").onclick = e => { const n = e.target.dataset.x; if (n !== undefined) { imgs.splice(+n, 1); renderThumbs(); } };
+$("#thumbs").onclick = e => {
+  const n = e.target.dataset.x; if (n === undefined) return;
+  if (+n < imgs.length) imgs.splice(+n, 1);
+  else { const [p] = pending.splice(+n - imgs.length, 1); URL.revokeObjectURL(p.url); }
+  renderThumbs();
+};
+function clearPending() { pending.forEach(p => URL.revokeObjectURL(p.url)); pending = []; }
+function addFiles(files) { files.forEach(f => pending.push({file:f, url:URL.createObjectURL(f)})); renderThumbs(); }
 function openForm(p) {
   editing = p || {}; $("#dt").textContent = p ? "Editar producto" : "Nuevo producto";
   renderFields();
   BASE.forEach(f => $("#f_"+f.key).value = p?.[f.key] ?? "");
   $("#f_category").value = p?.category ?? "";
   S.fields.forEach(f => $("#f_"+f.key).value = p?.extra?.[f.key] ?? "");
-  imgs = p ? [...(p.images || [])] : []; renderThumbs();
+  clearPending(); imgs = p ? [...(p.images || [])] : []; renderThumbs();
   $("#img").value = ""; $("#perr").textContent = ""; $("#dlg").showModal();
 }
 $("#new").onclick = () => openForm(null);
-$("#cancel").onclick = () => { editing = null; $("#dlg").close(); };
+$("#cancel").onclick = () => { editing = null; clearPending(); $("#dlg").close(); };
 $("#save").onclick = async () => {
   const err = m => $("#perr").textContent = m;
   const data = {}; BASE.forEach(f => data[f.key] = $("#f_"+f.key).value.trim());
   if (!data.partNumber || !data.description) return err("Número de parte y descripción son obligatorios.");
-  const files = [...$("#img").files];
+  const files = pending.map(p => p.file);
   if (!imgs.length && !files.length) return err("Cada producto necesita al menos una imagen.");
   if (files.length && (CLOUD_NAME.startsWith("TU_") || UPLOAD_PRESET.startsWith("TU_"))) return err("Falta configurar Cloudinary en el archivo (CLOUD_NAME y UPLOAD_PRESET).");
   if (products.some(p => p.partNumber === data.partNumber && p.id !== editing.id)) return err("Ya existe un producto con ese número de parte.");
@@ -186,7 +194,7 @@ $("#save").onclick = async () => {
     data.images = all; data.imageUrl = all[0].url;
     if (!editing.id) { data.stock = 0; data.stockByLoc = {}; }   // la existencia solo cambia con movimientos
     await setDoc(doc(db,"products",id), {...data, updatedAt: serverTimestamp()}, {merge:true});
-    editing = null; err(""); $("#dlg").close();
+    editing = null; clearPending(); err(""); $("#dlg").close();
   } catch (e) { err("No se pudo guardar: " + e.message); }
   $("#save").disabled = false;
 };
@@ -310,3 +318,25 @@ let installEv = null;
 addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEv = e; $("#inst").hidden = false; });
 $("#inst").onclick = async () => { if (!installEv) return; installEv.prompt(); await installEv.userChoice; installEv = null; $("#inst").hidden = true; };
 addEventListener("appinstalled", () => { $("#inst").hidden = true; });
+
+/* ---------- Cámara ---------- */
+$("#galbtn").onclick = () => $("#img").click();
+$("#img").onchange = () => { addFiles([...$("#img").files]); $("#img").value = ""; };
+$("#imgcam").onchange = () => { addFiles([...$("#imgcam").files]); $("#imgcam").value = ""; };
+$("#cambtn").onclick = async () => {
+  // En celular/tableta abre la cámara nativa; en computadora usa la cámara web con vista previa
+  if (matchMedia("(pointer: coarse)").matches || !navigator.mediaDevices?.getUserMedia) return $("#imgcam").click();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment", width:{ideal:1920}}, audio:false});
+    $("#cv").srcObject = stream; $("#cmsg").textContent = ""; $("#camdlg").showModal();
+  } catch { $("#perr").textContent = "No se pudo abrir la cámara. Revisa el permiso del navegador o sube la foto desde la galería."; }
+};
+function stopCam() { stream?.getTracks().forEach(t => t.stop()); stream = null; $("#cv").srcObject = null; }
+$("#snap").onclick = () => {
+  const v = $("#cv"); if (!v.videoWidth) return;
+  const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  c.toBlob(b => { addFiles([new File([b], `foto_${Date.now()}.jpg`, {type:"image/jpeg"})]); $("#cmsg").textContent = `Foto agregada (${pending.length}). Captura otra o toca Listo.`; }, "image/jpeg", .9);
+};
+$("#camdone").onclick = () => $("#camdlg").close();
+$("#camdlg").addEventListener("close", stopCam);

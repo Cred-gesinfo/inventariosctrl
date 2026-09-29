@@ -145,12 +145,21 @@ dialog::backdrop{background:#0008}
   <form method="dialog" id="pf" style="margin:0">
     <h2 id="dt" style="margin-top:0"></h2>
     <div id="fields"></div>
-    <label for="img">Imágenes del producto (la primera es la portada)</label>
+    <label>Imágenes del producto (la primera es la portada)</label>
     <div id="thumbs" class="row" style="flex-wrap:wrap;justify-content:flex-start"></div>
-    <input id="img" type="file" accept="image/*" multiple>
+    <div class="acts"><button type="button" class="sec" id="cambtn">Tomar foto</button><button type="button" class="sec" id="galbtn">Subir desde galería</button></div>
+    <input id="img" type="file" accept="image/*" multiple hidden>
+    <input id="imgcam" type="file" accept="image/*" capture="environment" hidden>
     <p class="err" id="perr"></p>
     <div class="acts"><button type="button" id="save">Guardar producto</button><button type="button" class="sec" id="cancel">Cancelar</button></div>
   </form>
+</dialog>
+
+<dialog id="camdlg">
+  <h2 style="margin-top:0">Tomar foto</h2>
+  <video id="cv" autoplay playsinline muted style="width:100%;border-radius:8px;background:#000"></video>
+  <p class="mute" id="cmsg" role="status" style="min-height:1.4rem"></p>
+  <div class="acts"><button type="button" id="snap">Capturar</button><button type="button" class="sec" id="camdone">Listo</button></div>
 </dialog>
 
 <script type="module" src="app.js"></script>
