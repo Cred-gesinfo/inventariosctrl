@@ -2,6 +2,7 @@
   "name": "Inventario",
   "short_name": "Inventario",
   "description": "Control de entradas y salidas de producto",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
