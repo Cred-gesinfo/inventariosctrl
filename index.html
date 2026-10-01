@@ -162,7 +162,7 @@ h3.gh span:last-child:not(:first-child){color:var(--mute);font-weight:400;font-s
       <button data-t="cam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Ajustes</span></button>
       <button data-t="usr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-4 3-6 6.5-6s6.5 2 6.5 6M17 5a3.5 3.5 0 010 7M21.5 20c0-3-1.5-5-4-5.7"/></svg><span>Usuarios</span></button>
     </nav>
-    <div class="r"><span id="who"></span><button id="inst" hidden>Instalar app</button><button id="out">Salir</button></div>
+    <div class="r"><span id="who"></span><button id="inst" hidden>Instalar app</button><button id="accbtn">Cuenta</button><button id="out">Salir</button></div>
   </header>
   <main>
     <section id="cat">
@@ -248,6 +248,26 @@ h3.gh span:last-child:not(:first-child){color:var(--mute);font-weight:400;font-s
     </section>
   </main>
 </div>
+
+<dialog id="spwdlg">
+  <h2 style="margin-top:0">Cambiar contraseña</h2>
+  <p class="mute" id="spwwho"></p>
+  <label for="spw">Contraseña nueva (mínimo 6 caracteres)</label>
+  <div class="row"><input id="spw" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="sec" id="spwgen" style="flex:0 0 auto">Generar</button></div>
+  <p class="err" id="spwerr" role="alert"></p>
+  <div class="acts sheetbar"><button type="button" id="spwsave">Guardar</button><button type="button" class="sec" id="spwclose">Cerrar</button></div>
+</dialog>
+
+<dialog id="accdlg">
+  <h2 style="margin-top:0">Mi cuenta</h2>
+  <p class="mute" id="accinfo"></p>
+  <label for="pw0">Contraseña actual</label><input id="pw0" type="password" autocomplete="current-password">
+  <label for="pw1">Contraseña nueva (mínimo 6 caracteres)</label><input id="pw1" type="password" autocomplete="new-password">
+  <label for="pw2">Repite la contraseña nueva</label><input id="pw2" type="password" autocomplete="new-password">
+  <p class="err" id="pwerr" role="alert"></p>
+  <div class="acts sheetbar"><button type="button" id="pwsave">Cambiar contraseña</button><button type="button" class="sec" id="pwclose">Cerrar</button></div>
+  <button type="button" class="sec" id="pwforgot" style="width:100%;margin-top:.6rem;border-color:transparent">Olvidé mi contraseña actual: enviarme un correo</button>
+</dialog>
 
 <div id="instbar" role="dialog" aria-label="Instalar app" hidden>
   <img src="icons/icon-192.png" alt="" width="40" height="40">

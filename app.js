@@ -1,5 +1,5 @@
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword,sendPasswordResetEmail,updatePassword,reauthenticateWithCredential,EmailAuthProvider} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,runTransaction,serverTimestamp,query,orderBy,limit,getDocs,where,startAfter} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Configuración del proyecto invcontrol-62d5b
@@ -73,6 +73,7 @@ function startData() {
     onSnapshot(collection(db,"products"), s => { products = s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=>(a.partNumber||"").localeCompare(b.partNumber||"")); renderAll(); if (asOfOn()) setAsOf(); }),
     onSnapshot(query(collection(db,"movements"), orderBy("date","desc"), limit(15)), s => { movs = s.docs.map(d => d.data()); renderMovs(); })
   );
+  if (can("users")) checkOwner();
   if (can("users")) dataSubs.push(onSnapshot(collection(db,"users"), s => {
     users = s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=>(a.name||a.email||"").localeCompare(b.name||b.email||"")); renderUsers();
   }));
@@ -321,7 +322,7 @@ function renderUsers() {
       <select style="flex:1 1 150px" data-ur="${u.id}" ${self?"disabled":""} aria-label="Rol de ${esc(u.email)}">${roleOpts(u.role)}</select>
       <label style="margin:0;display:flex;gap:.5rem;align-items:center;flex:0 0 auto"><input type="checkbox" data-ua="${u.id}" ${u.active?"checked":""} ${self?"disabled":""}> Activo</label>
     </div>
-    <div class="acts"><button class="sec" data-up="${esc(u.email)}">Restablecer contraseña</button></div>
+    <div class="acts">${isOwner ? `<button data-uc="${u.id}" data-un="${esc(u.email)}">Cambiar contraseña</button>` : ""}<button class="sec" data-up="${esc(u.email)}">Restablecer por correo</button>${self ? "" : `<button class="del" data-ud="${u.id}" data-un="${esc(u.email)}">Eliminar</button>`}</div>
   </div>`; }).join("");
 }
 $("#ulist").onchange = async e => {
@@ -330,6 +331,24 @@ $("#ulist").onchange = async e => {
   if (e.target.dataset.ua) await updateDoc(doc(db,"users",e.target.dataset.ua), {active:e.target.checked});
 };
 $("#ulist").onclick = async e => {
+  if (e.target.dataset.uc) {
+    if (!isOwner) return;
+    spwUid = e.target.dataset.uc; $("#spwwho").textContent = e.target.dataset.un; $("#spw").value = ""; $("#spwerr").textContent = ""; $("#spwdlg").showModal(); return;
+  }
+  if (e.target.dataset.ud) {
+    if (!can("users")) return;
+    if (!confirm(`¿Eliminar a ${e.target.dataset.un}? Perderá el acceso de inmediato. Sus movimientos pasados se conservan en el historial.`)) return;
+    if (isOwner) {   // el propietario elimina también la cuenta de Firebase: el correo queda libre
+      try { await api({action:"deleteUser", uid:e.target.dataset.ud}); alert("Listo: se eliminó su acceso y también su cuenta, así que ese correo queda libre para darlo de alta otra vez."); }
+      catch (x) { alert("No se pudo eliminar: " + x.message); }
+      return;
+    }
+    try {
+      await deleteDoc(doc(db,"users",e.target.dataset.ud));
+      alert("Listo, ya no tiene acceso.\n\nSi después quieres volver a darlo de alta con el mismo correo, primero borra su cuenta en Firebase: Authentication, Users, menú ⋮ y Eliminar cuenta.");
+    } catch (x) { alert("No se pudo eliminar: " + x.message); }
+    return;
+  }
   const mail = e.target.dataset.up; if (!mail || !can("users")) return;
   try { await sendPasswordResetEmail(auth, mail); alert("Se envió un correo para restablecer la contraseña a " + mail); }
   catch { alert("No se pudo enviar el correo."); }
@@ -348,7 +367,7 @@ $("#ugo").onclick = async () => {
     if ($("#usend").checked) { try { await sendPasswordResetEmail(auth, email); } catch {} }
     $("#un").value = $("#ue").value = $("#up").value = "";
   } catch (e) {
-    err(e.code === "auth/email-already-in-use" ? "Ese correo ya tiene cuenta. Si ya lo diste de alta, búscalo en la lista." :
+    err(e.code === "auth/email-already-in-use" ? "Ese correo ya tiene cuenta. Si ya lo diste de alta, búscalo en la lista. Si lo eliminaste antes, borra su cuenta en Firebase (Authentication, Users) y vuelve a intentar." :
         e.code === "auth/invalid-email" ? "El correo no es válido." :
         e.code === "auth/operation-not-allowed" ? "En Authentication debe estar permitido crear cuentas (User actions)." : "No se pudo crear: " + e.message);
   }
@@ -574,3 +593,57 @@ function hisSummary() {
   return [...mp.values()].sort((a, b) => a.pn.localeCompare(b.pn));
 }
 $("#hview").onclick = e => { if (!e.target.dataset.v) return; document.querySelectorAll("#hview button").forEach(b => b.classList.toggle("on", b === e.target)); renderHis(); };
+
+/* ---------- Mi cuenta: cambiar contraseña ---------- */
+const clearPw = () => ["#pw0","#pw1","#pw2"].forEach(s => $(s).value = "");
+$("#accbtn").onclick = () => {
+  $("#accinfo").textContent = [me?.name, auth.currentUser?.email, ROLES[me?.role]?.label].filter(Boolean).join(" · ");
+  clearPw(); $("#pwerr").textContent = ""; $("#pwerr").style.color = ""; $("#accdlg").showModal();
+};
+$("#pwclose").onclick = () => $("#accdlg").close();
+$("#pwsave").onclick = async () => {
+  const msg = $("#pwerr"), u = auth.currentUser, p0 = $("#pw0").value, p1 = $("#pw1").value, p2 = $("#pw2").value; msg.style.color = "";
+  if (!p0) return void (msg.textContent = "Escribe tu contraseña actual.");
+  if (p1.length < 6) return void (msg.textContent = "La contraseña nueva necesita al menos 6 caracteres.");
+  if (p1 !== p2) return void (msg.textContent = "Las contraseñas nuevas no coinciden.");
+  if (p1 === p0) return void (msg.textContent = "La nueva contraseña debe ser distinta a la actual.");
+  $("#pwsave").disabled = true; msg.textContent = "";
+  try {
+    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, p0));   // confirma que eres tú
+    await updatePassword(u, p1);
+    clearPw(); msg.style.color = "var(--pine)"; msg.textContent = "Listo, tu contraseña se cambió.";
+  } catch (x) {
+    msg.textContent = ["auth/wrong-password","auth/invalid-credential","auth/invalid-login-credentials"].includes(x.code) ? "La contraseña actual no es correcta."
+      : x.code === "auth/weak-password" ? "La contraseña nueva es muy débil."
+      : x.code === "auth/too-many-requests" ? "Demasiados intentos. Espera unos minutos y vuelve a intentar."
+      : "No se pudo cambiar: " + x.message;
+  }
+  $("#pwsave").disabled = false;
+};
+$("#pwforgot").onclick = async () => {
+  const msg = $("#pwerr"); msg.style.color = "";
+  try { await sendPasswordResetEmail(auth, auth.currentUser.email); msg.style.color = "var(--pine)"; msg.textContent = "Te enviamos un correo con un enlace para crear una contraseña nueva."; }
+  catch { msg.textContent = "No se pudo enviar el correo. Intenta de nuevo en unos minutos."; }
+};
+
+/* ---------- Funciones de servidor (solo el propietario) ---------- */
+async function api(body) {
+  const t = await auth.currentUser.getIdToken();
+  const r = await fetch("/api/admin", {method:"POST", headers:{"Content-Type":"application/json", Authorization:"Bearer " + t}, body:JSON.stringify(body)});
+  let j = {}; try { j = await r.json(); } catch {}
+  if (!r.ok) throw Object.assign(new Error(j.error || "Error " + r.status), {status:r.status});
+  return j;
+}
+let isOwner = false, spwUid = null;
+async function checkOwner() { isOwner = false; try { isOwner = (await api({action:"can"})).ok === true; } catch {} renderUsers(); }
+const genPw = () => { const c = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"; return [...crypto.getRandomValues(new Uint32Array(10))].map(n => c[n % c.length]).join(""); };
+$("#spwgen").onclick = () => { $("#spw").value = genPw(); };
+$("#spwclose").onclick = () => $("#spwdlg").close();
+$("#spwsave").onclick = async () => {
+  const msg = $("#spwerr"), pw = $("#spw").value; msg.style.color = "";
+  if (pw.length < 6) return void (msg.textContent = "Mínimo 6 caracteres.");
+  $("#spwsave").disabled = true; msg.textContent = "Guardando…";
+  try { await api({action:"setPassword", uid:spwUid, password:pw}); msg.style.color = "var(--pine)"; msg.textContent = "Listo. La contraseña cambió y esa persona deberá iniciar sesión de nuevo con la nueva."; }
+  catch (e) { msg.textContent = e.status === 403 ? "Solo el propietario puede cambiar contraseñas." : "No se pudo cambiar: " + e.message; }
+  $("#spwsave").disabled = false;
+};
