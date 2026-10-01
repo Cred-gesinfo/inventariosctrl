@@ -345,18 +345,39 @@ $("#ugo").onclick = async () => {
 /* ---------- App instalable (PWA) ---------- */
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 let installEv = null;
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const ls = {get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} }};
+const dismissedWithin = days => Date.now() - (+ls.get("inst_dismiss") || 0) < days * 864e5;
 const instBtns = () => [$("#inst"), $("#inst2")];
-addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEv = e; instBtns().forEach(b => b.hidden = false); $("#insttip").hidden = true; });
-instBtns().forEach(b => b.onclick = async () => { if (!installEv) return; installEv.prompt(); await installEv.userChoice; installEv = null; instBtns().forEach(x => x.hidden = true); });
-addEventListener("appinstalled", () => instBtns().forEach(b => b.hidden = true));
-// Guía para cuando el navegador no ofrece el botón (iPhone o navegadores dentro de otras apps)
+const hideBar = () => { $("#instbar").hidden = true; };
+function showBar(text, canInstall) {
+  if (standalone()) return;                                   // ya instalada y abierta como app: no molestar
+  $("#instmsg").textContent = text; $("#instgo").hidden = !canInstall;
+  $("#instno").textContent = canInstall ? "Ahora no" : "Entendido"; $("#instbar").hidden = false;
+}
+// Chrome/Edge/Android solo lanzan este evento cuando la app NO está instalada
+addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); installEv = e; ls.set("inst_ok", "");
+  instBtns().forEach(b => b.hidden = standalone()); $("#insttip").hidden = true;
+  if (!dismissedWithin(3)) showBar("Instala la app para abrirla más rápido, como cualquier otra app de tu teléfono.", true);
+});
+async function doInstall() {
+  if (!installEv) return;
+  installEv.prompt(); const r = await installEv.userChoice; installEv = null;
+  hideBar(); instBtns().forEach(b => b.hidden = true);
+  if (r.outcome !== "accepted") ls.set("inst_dismiss", Date.now());
+}
+instBtns().forEach(b => b.onclick = doInstall); $("#instgo").onclick = doInstall;
+$("#instno").onclick = () => { ls.set("inst_dismiss", Date.now()); hideBar(); };
+addEventListener("appinstalled", () => { ls.set("inst_ok", "1"); hideBar(); instBtns().forEach(b => b.hidden = true); });
+// iPhone y navegadores dentro de otras apps no lanzan el evento: se muestra la guía
 (() => {
-  if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) return;
-  const ua = navigator.userAgent, tip = $("#insttip");
-  if (/FBAN|FBAV|Instagram|WhatsApp|Line\/|MicroMessenger|; wv\)/i.test(ua)) tip.textContent = "Estás dentro de otra app. Abre esta dirección en Chrome (menú ⋮, “Abrir en el navegador”) para poder instalarla.";
-  else if (/iphone|ipad|ipod/i.test(ua)) tip.textContent = "En iPhone: abre esta página en Safari, toca Compartir y elige “Agregar a pantalla de inicio”.";
-  else return void setTimeout(() => { if (!installEv) { tip.textContent = "Si no aparece el botón Instalar, abre el menú ⋮ del navegador y elige “Instalar aplicación” o “Agregar a pantalla de inicio”."; tip.hidden = false; } }, 4000);
-  tip.hidden = false;
+  if (standalone()) return;
+  const ua = navigator.userAgent, tip = $("#insttip"); let msg = "";
+  if (/FBAN|FBAV|Instagram|WhatsApp|Line\/|MicroMessenger|; wv\)/i.test(ua)) msg = "Estás dentro de otra app. Abre esta dirección en Chrome (menú ⋮, “Abrir en el navegador”) para poder instalarla.";
+  else if (/iphone|ipad|ipod/i.test(ua)) msg = "En iPhone: abre esta página en Safari, toca Compartir y elige “Agregar a pantalla de inicio”.";
+  if (msg) { tip.textContent = msg; tip.hidden = false; if (!ls.get("inst_ok") && !dismissedWithin(14)) showBar(msg, false); return; }
+  setTimeout(() => { if (!installEv) { tip.textContent = "Si no aparece el botón Instalar, abre el menú ⋮ del navegador y elige “Instalar aplicación” o “Agregar a pantalla de inicio”."; tip.hidden = false; } }, 4000);
 })();
 
 /* ---------- Cámara ---------- */

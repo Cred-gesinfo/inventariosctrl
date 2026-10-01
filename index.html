@@ -108,8 +108,13 @@ h3.gh span:last-child:not(:first-child){color:var(--mute);font-weight:400;font-s
 .ir .t{flex:1;min-width:0;line-height:1.3}.ir .q{font-size:1.3rem;font-weight:700;min-width:2.2rem;text-align:right}.ir .q.low{color:var(--red)}
 .ir button{min-height:40px;padding:.3rem .7rem}
 #msub button{min-height:46px}
+#instbar{position:fixed;left:.6rem;right:.6rem;bottom:calc(1rem + env(safe-area-inset-bottom));z-index:45;max-width:520px;margin:0 auto;display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:.8rem;box-shadow:0 6px 24px #0003}
+#instbar img{border-radius:9px;flex:0 0 40px}
+#instbar p{margin:0;flex:1 1 180px;font-size:.95rem;line-height:1.3}
+#instbar .acts{flex:1 1 100%;margin:0}#instbar .acts button{flex:1}
 #new .pl{display:none}
 @media (max-width:700px){
+ #app:not([hidden]) ~ #instbar{bottom:calc(84px + env(safe-area-inset-bottom))}
  #new{width:58px;height:58px;min-height:58px;padding:0;font-size:2rem;line-height:1}
  #new .pl{display:inline}#new .lb{display:none}
  .acts [data-m]{flex:1 1 100%}.acts [data-e],.acts [data-d]{flex:1 1 40%}
@@ -242,6 +247,11 @@ h3.gh span:last-child:not(:first-child){color:var(--mute);font-weight:400;font-s
   </main>
 </div>
 
+<div id="instbar" role="dialog" aria-label="Instalar app" hidden>
+  <img src="icons/icon-192.png" alt="" width="40" height="40">
+  <p id="instmsg"></p>
+  <div class="acts"><button id="instgo">Instalar</button><button class="sec" id="instno">Ahora no</button></div>
+</div>
 <div id="toast" role="status" hidden></div>
 
 <dialog id="dlg">

@@ -1,7 +1,7 @@
 // Guarda solo los archivos propios de la app para que abra rápido.
 // Los datos (Firestore) y las fotos (Cloudinary) siempre vienen de internet.
 // Al publicar cambios, sube el número de versión para que todos reciban lo nuevo.
-const V = "inv-v8";
+const V = "inv-v9";
 const SHELL = ["./", "index.html", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
