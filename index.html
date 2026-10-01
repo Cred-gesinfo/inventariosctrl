@@ -141,6 +141,7 @@ h3.gh span:last-child:not(:first-child){color:var(--mute);font-weight:400;font-s
   <label for="pw">Contraseña</label><input id="pw" type="password" autocomplete="current-password">
   <p class="err" id="lerr"></p>
   <button id="go" style="width:100%">Entrar</button>
+  <button type="button" class="sec" id="forgot" style="width:100%;margin-top:.6rem;border-color:transparent">¿Olvidaste tu contraseña?</button>
   <button class="sec" id="inst2" hidden style="width:100%;margin-top:.6rem">Instalar app</button>
   <p class="mute" id="insttip" hidden style="margin-bottom:0"></p>
 </section>
@@ -238,6 +239,7 @@ h3.gh span:last-child:not(:first-child){color:var(--mute);font-weight:400;font-s
           <div><label for="up">Contraseña temporal (mínimo 6 caracteres)</label><input id="up" autocomplete="off"></div>
           <div><label for="ur">Rol</label><select id="ur"></select></div>
         </div>
+        <label style="display:flex;gap:.5rem;align-items:center;font-weight:400"><input type="checkbox" id="usend" checked> Enviarle un correo para que defina su propia contraseña</label>
         <p class="err" id="uerr"></p>
         <button id="ugo">Crear usuario</button>
         <p class="mute" id="rolehelp"></p>

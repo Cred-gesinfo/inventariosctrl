@@ -97,10 +97,22 @@ function showTab(t) {
 }
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => showTab(b.dataset.t));
 $("#go").onclick = async () => {
+  $("#lerr").style.color = "";
   try { await signInWithEmailAndPassword(auth, $("#em").value, $("#pw").value); $("#lerr").textContent = ""; }
   catch { $("#lerr").textContent = "Correo o contraseña incorrectos."; }
 };
 $("#out").onclick = $("#out2").onclick = () => signOut(auth);
+$("#forgot").onclick = async () => {
+  const email = $("#em").value.trim(), msg = $("#lerr"); msg.style.color = "";
+  if (!email) { msg.textContent = "Escribe tu correo arriba y vuelve a tocar “¿Olvidaste tu contraseña?”."; return; }
+  try { await sendPasswordResetEmail(auth, email); }
+  catch (e) {
+    if (e.code === "auth/invalid-email") { msg.textContent = "El correo no es válido."; return; }
+    if (e.code === "auth/too-many-requests") { msg.textContent = "Demasiados intentos. Espera unos minutos y vuelve a intentar."; return; }
+  }
+  // Mismo mensaje exista o no el correo, para no revelar quién tiene cuenta
+  msg.style.color = "var(--pine)"; msg.textContent = "Si ese correo está registrado, te enviamos un enlace para crear una contraseña nueva. Revisa también la carpeta de spam.";
+};
 function renderAll() { renderInvControls(); renderInv(); renderCfg(); renderFields(); renderFilter(); renderList(); renderSelect(); renderMovs(); renderUsers(); }
 
 /* ---------- Imágenes (Cloudinary) ---------- */
@@ -333,6 +345,7 @@ $("#ugo").onclick = async () => {
     const cred = await createUserWithEmailAndPassword(authAlt, email, pw);
     await setDoc(doc(db,"users",cred.user.uid), {name, email, role, active:true, createdAt:serverTimestamp()});
     await signOut(authAlt);
+    if ($("#usend").checked) { try { await sendPasswordResetEmail(auth, email); } catch {} }
     $("#un").value = $("#ue").value = $("#up").value = "";
   } catch (e) {
     err(e.code === "auth/email-already-in-use" ? "Ese correo ya tiene cuenta. Si ya lo diste de alta, búscalo en la lista." :
